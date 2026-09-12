@@ -14,8 +14,9 @@ print(df.info())
 
 # Normalização
 scaler = StandardScaler()
-df['Amount_scaled'] = scaler.fit_transform(df['Amount'].values.reshape(-1, 1))
-df = df.drop(['Amount', 'Time'], axis=1)
+df['Amount_scaled'] = scaler.fit_transform(df[['Amount']])
+df['Time_scaled'] = scaler.fit_transform(df[['Time']])
+df = df.drop(columns=['Amount', 'Time'])
 
 # Dividindo os dados em treinamento e teste
 X = df.drop('Class', axis=1)
@@ -25,7 +26,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 # modelo de regressão logística
 model = LogisticRegression(solver='lbfgs', max_iter=1000, class_weight='balanced')
 model.fit(X_train, y_train)
-# Make predictions on the test set
+# Faz as previsões no conjunto de teste
 y_pred = model.predict(X_test)
 y_prob = model.predict_proba(X_test)[:, 1]
 
@@ -47,7 +48,7 @@ sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues")
 plt.title('Confusion Matrix')
 plt.xlabel('Predicted')
 plt.ylabel('True')
-plt.show()
+plt.show() 
 
 # curva ROC
 fpr, tpr, thresholds = roc_curve(y_test, y_prob)
@@ -57,4 +58,47 @@ plt.title('Receiver Operating Characteristic (ROC) Curve')
 plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
 plt.legend()
+plt.show()
+
+
+# Encontrando o Melhor Limiar com Matriz de Confusão
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
+
+# 1. Varredura para encontrar o limiar que maximiza o F1-Score
+limiares = np.linspace(0.5, 0.99, 50)
+melhor_f1 = 0
+melhor_limiar = 0.5
+
+for limiar in limiares:
+    preds = (y_prob >= limiar).astype(int)
+    score = f1_score(y_test, preds, zero_division=0)
+    if score > melhor_f1:
+        melhor_f1 = score
+        melhor_limiar = limiar
+
+print(f"--- Ponto Ótimo Encontrado ---")
+print(f"Melhor Limiar: {melhor_limiar:.3f}")
+y_pred_otimo = (y_prob >= melhor_limiar).astype(int)
+print(f"Precisão: {precision_score(y_test, y_pred_otimo):.4f}")
+print(f"Recall: {recall_score(y_test, y_pred_otimo):.4f}")
+print(f"Novo F1-Score: {f1_score(y_test, y_pred_otimo):.4f}\n")
+
+# 2. Plotagem lado a lado da Matriz de Confusão
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+# Matriz com corte padrão (0.50)
+cm_padrao = confusion_matrix(y_test, y_pred)
+sns.heatmap(cm_padrao, annot=True, fmt='d', cmap='Blues', ax=axes[0], cbar=False)
+axes[0].set_title('Limiar Padrão (0.50)')
+axes[0].set_xlabel('Previsão')
+axes[0].set_ylabel('Real')
+
+# Matriz com corte otimizado
+cm_otimo = confusion_matrix(y_test, y_pred_otimo)
+sns.heatmap(cm_otimo, annot=True, fmt='d', cmap='Greens', ax=axes[1], cbar=False)
+axes[1].set_title(f'Limiar Otimizado ({melhor_limiar:.2f})')
+axes[1].set_xlabel('Previsão')
+axes[1].set_ylabel('Real')
+
+plt.tight_layout()
 plt.show()
